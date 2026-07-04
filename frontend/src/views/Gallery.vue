@@ -3,60 +3,104 @@
     <div class="gallery-top">
       <div class="gallery-header">
         <h1>Image Gallery</h1>
-        <el-button type="primary" plain class="upload-btn-capsule" @click="$router.push('/home')">UPLOAD</el-button>
+        
+        <div style="display: flex; gap: 16px; align-items: center;">
+          <div class="view-switcher">
+            <button 
+              :class="['switch-btn', { active: viewMode === 'grid' }]" 
+              @click="viewMode = 'grid'"
+              title="网格视图"
+            >
+              <el-icon><Grid /></el-icon>
+            </button>
+            <button 
+              :class="['switch-btn', { active: viewMode === 'timeline' }]" 
+              @click="viewMode = 'timeline'"
+              title="时光轴视图"
+            >
+              <el-icon><Calendar /></el-icon>
+            </button>
+          </div>
+          
+          <el-button type="primary" plain class="upload-btn-capsule" @click="$router.push('/home')">UPLOAD</el-button>
+        </div>
       </div>
 
       <div class="toolbar">
-      <div class="tabs">
-        <span
-          class="tab"
-          :class="{ active: activeCategory === 'ALL' }"
-          @click="switchCategory('ALL')"
-        >
-          全部
-        </span>
-        <span
-          v-for="cat in userCategories"
-          :key="cat.id"
-          class="tab tab-category"
-          :class="{ active: activeCategory === cat.name }"
-          @click="switchCategory(cat.name)"
-        >
-          {{ cat.name }}
-          <span class="tab-edit" @click.stop="openEditKeywords(cat)" title="编辑关键词">⚙</span>
+        <div class="tabs">
           <span
-            v-if="!cat.builtIn"
-            class="tab-remove"
-            @click.stop="confirmDeleteCategory(cat)"
-          >×</span>
-        </span>
-        <span class="tab tab-add" @click="showAddCategory = true">+ 新建</span>
-      </div>
-      <div class="search-capsule-shell">
-        <el-input
-          v-model="keyword"
-          class="search-capsule"
-          placeholder="搜索文件名或分类..."
-          clearable
-          @keyup.enter="onSearch"
-          @clear="onSearch"
-        >
-          <template #append>
-            <el-button @click="onSearch">搜索</el-button>
-          </template>
-        </el-input>
-      </div>
-    </div>
-    </div>
-
-    <div v-loading="loading" class="photo-grid">
-      <div v-for="photo in photos" :key="photo.id" class="photo-card" @click="openPreview(photo)">
-        <img :src="photo.thumbUrl || photo.url" :alt="photo.originalName" />
-        <div class="photo-info">
-          <el-tag size="small">{{ photo.aiCategory || '其他' }}</el-tag>
-          <span class="name">{{ photo.originalName }}</span>
+            class="tab"
+            :class="{ active: activeCategory === 'ALL' }"
+            @click="switchCategory('ALL')"
+          >
+            全部
+          </span>
+          <span
+            v-for="cat in userCategories"
+            :key="cat.id"
+            class="tab tab-category"
+            :class="{ active: activeCategory === cat.name }"
+            @click="switchCategory(cat.name)"
+          >
+            {{ cat.name }}
+            <span class="tab-edit" @click.stop="openEditKeywords(cat)" title="编辑关键词">⚙</span>
+            <span
+              v-if="!cat.builtIn"
+              class="tab-remove"
+              @click.stop="confirmDeleteCategory(cat)"
+            >×</span>
+          </span>
+          <span class="tab tab-add" @click="showAddCategory = true">+ 新建</span>
+        </div>
+        <div class="search-capsule-shell">
+          <el-input
+            v-model="keyword"
+            class="search-capsule"
+            placeholder="搜索文件名或分类..."
+            clearable
+            @keyup.enter="onSearch"
+            @clear="onSearch"
+          >
+            <template #append>
+              <el-button @click="onSearch">搜索</el-button>
+            </template>
+          </el-input>
         </div>
       </div>
+    </div>
+
+    <div v-loading="loading" class="gallery-body">
+      
+      <div v-if="viewMode === 'grid'" class="photo-grid">
+        <div v-for="photo in photos" :key="photo.id" class="photo-card" @click="openPreview(photo)">
+          <img :src="photo.thumbUrl || photo.url" :alt="photo.originalName" />
+          <div class="photo-info">
+            <el-tag size="small">{{ photo.aiCategory || '其他' }}</el-tag>
+            <span class="name">{{ photo.originalName }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="viewMode === 'timeline'" class="timeline-wrapper">
+        <div class="timeline-line"></div>
+        <div v-for="(group, date) in timelineGroups" :key="date" class="timeline-group">
+          <div class="timeline-date-node">
+            <div class="node-dot"></div>
+            <div class="node-date">{{ date }}</div>
+            <span class="node-count">共 {{ group.length }} 张照片</span>
+          </div>
+          <div class="timeline-photos">
+            <div v-for="photo in group" :key="photo.id" class="photo-card" @click="openPreview(photo)">
+              <img :src="photo.thumbUrl || photo.url" :alt="photo.originalName" />
+              <div class="photo-info">
+                <el-tag size="small" type="info">{{ formatTimeOnly(photo.createdAt) }}</el-tag>
+                <span class="name">{{ photo.originalName }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
     </div>
 
     <el-empty v-if="!loading && !photos.length" description="暂无照片，去上传吧" />
@@ -164,11 +208,49 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Grid, Calendar } from '@element-plus/icons-vue' // 引入图标
 import { getPhotos, updateCategory, deletePhoto } from '../api/photo'
 import { getCategories, createCategory, deleteCategory, updateCategoryKeywords } from '../api/category'
 
 const router = useRouter()
 const route = useRoute()
+
+// ================= 新增：视图状态与计算 =================
+const viewMode = ref('grid') // 默认网格视图
+
+const timelineGroups = computed(() => {
+  if (!photos.value || !photos.value.length) return {}
+  const groups = {}
+  
+  photos.value.forEach(photo => {
+    if (!photo.createdAt) return
+    // 兼容处理时间格式中的空格或 T
+    const dateStr = String(photo.createdAt).includes('T') 
+      ? String(photo.createdAt).split('T')[0] 
+      : String(photo.createdAt).split(' ')[0]
+
+    if (!groups[dateStr]) groups[dateStr] = []
+    groups[dateStr].push(photo)
+  })
+
+  // 按日期降序排列
+  const sorted = {}
+  Object.keys(groups)
+    .sort((a, b) => new Date(b) - new Date(a))
+    .forEach(key => {
+      sorted[key] = groups[key]
+    })
+  return sorted
+})
+
+function formatTimeOnly(val) {
+  if (!val) return ''
+  const str = String(val)
+  if (str.includes('T')) return str.split('T')[1].substring(0, 5)
+  if (str.includes(' ')) return str.split(' ')[1].substring(0, 5)
+  return ''
+}
+// ========================================================
 
 const userCategories = ref([])
 const categoryOptions = computed(() => userCategories.value.map(c => c.name))
@@ -718,11 +800,15 @@ function formatDateTime(val) {
   background: rgba(110, 181, 255, 0.2) !important;
 }
 
+/* ================== 新增：网格和基础图片卡片样式 ================== */
+.gallery-body {
+  min-height: 200px;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  min-height: 200px;
 }
 
 .photo-card {
@@ -885,5 +971,91 @@ function formatDateTime(val) {
 .page-jump::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* ================== 新增：时光轴相关样式与视图切换器 ================== */
+.view-switcher {
+  display: flex;
+  background: rgba(18, 18, 28, 0.78);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+
+.switch-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.switch-btn.active {
+  background: #4a90e2;
+  color: #fff;
+}
+
+.timeline-wrapper {
+  position: relative;
+  padding-left: 30px;
+  margin-top: 20px;
+}
+
+.timeline-line {
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #4a90e2 0%, transparent 100%);
+}
+
+.timeline-group {
+  margin-bottom: 40px;
+  position: relative;
+}
+
+.timeline-date-node {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  position: relative;
+  left: -28px;
+}
+
+.node-dot {
+  width: 12px;
+  height: 12px;
+  background: #4a90e2;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  z-index: 1;
+  box-shadow: 0 0 8px rgba(74, 144, 226, 0.6);
+}
+
+.node-date {
+  font-size: 18px;
+  font-weight: bold;
+  margin-left: 16px;
+  color: #1e293b;
+}
+
+.node-count {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-left: 12px;
+}
+
+.timeline-photos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 </style>
