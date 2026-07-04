@@ -1,0 +1,64 @@
+server:
+
+  port: 8080
+
+
+
+spring:
+
+  application:
+
+    name: imprint-backend
+
+  datasource:
+
+    url: jdbc:mysql://localhost:3306/imprint?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+
+    username: root
+
+    password: 452680qwe
+
+  servlet:
+
+    multipart:
+
+      max-file-size: 20MB
+
+      max-request-size: 100MB
+
+
+
+mybatis-plus:
+
+  configuration:
+
+    map-underscore-to-camel-case: true
+
+  global-config:
+
+    db-config:
+
+      id-type: auto
+
+
+
+imprint:
+
+  jwt:
+
+    secret: imprint-photo-app-jwt-secret-key-change-in-production-2024
+
+    expiration-ms: 86400000
+
+  upload:
+
+    dir: uploads
+
+  baidu:
+
+    api-key: 2uMSjiigXRqiGfY0wro3WnH5
+
+    secret-key: wnGhHRd98Bq7ryCudblXc6emipbq4NhZ
+
+    enabled: true
+
